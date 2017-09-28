@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(MASS)
+library(DiceKriging)
+set.seed(5432)
+
+k <- function(x1, x2) {0.1 * exp(-((x1 - x2) / 0.2) ^ 2)}
+fitness <- . %>% {sin(.) +  .5}
+
+n <- 100
+x <- seq(0, 7, length.out = n)
+C <- x %>% 
+  sapply(function(x) sapply(., FUN = function(xx) k(x, xx)))
+
+f <- fitness(x) 
+y <- f + mvrnorm(1, mu = rep(0, n), Sigma = C)
+#y <- f + c(0.1*rnorm(n/2), 0.5*rnorm(n/2))
+
+df <- data.frame(x = x, f = f, y = y)
+
+fit <- lm(y ~ x)
+# gls.2 <- gls(y ~ x, df, correlation = corGaus(value = 0.3, ~ 1, fixed = T))
+gls.1 <- lm.gls(y ~ x, df, W = C, inverse = TRUE)
+
+df$y.hat <- fit$fitted.values
+
+xx <- model.matrix(fit)
+Sigi <- solve(C / 5)
+beta <- solve(t(xx) %*% Sigi %*% xx) %*% t(xx) %*% Sigi %*% y
+
+df$y.hat2 <- beta[2] * x + beta[1] 
+df$y.hat2 <- gls.1$fitted.values
+
+p <- ggplot(data = df) +
+  #geom_line(data = df, aes(x = x, y = y.hat2, colour = 'gls')) + 
+  geom_line(data = df, aes(x = x, y = f, colour = 'function')) + 
+  geom_point(data = df, aes(x = x, y = y, colour = 'y')) +
+  #geom_line(data = df, aes(x = x, y = y.hat, colour = 'ols')) +
+  scale_color_manual(name = NULL, values = c('gls' = 'blue', 'function' = 'red', 'y' = 'black', 'ols' = 'green'))
+print(p)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).

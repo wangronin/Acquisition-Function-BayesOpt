@@ -1,0 +1,158 @@
+---
+title: "Pandora's Rule in Bayesian Optimization"
+author: "Hao Wang"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, echo=FALSE}
+# setup for all the R chunks
+knitr::opts_knit$set(width = 1000)
+
+# change the workind dir for all the chunks
+knitr::opts_knit$set(root.dir = '~/Dropbox/code_base/BayesianOptim/R/') 
+```
+```{r, echo=FALSE, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+
+theme.my <- theme_grey() +
+  theme(text = element_text(size = 20),
+        plot.title = element_text(hjust = 0.5))
+theme_set(theme.my)
+source('./fitness.R')
+source('./criteria.R')
+```
+
+The (noisy) objective function is considered in the regression modelling: $y=f(\mathbf{x}) + \varepsilon$, where $\varepsilon$ stands for the Gaussian white noisy process. In addition, we choose a non-parametric function for $f$:
+$$f \sim GP(0, k(\cdot, \cdot))$$
+In R, the following scripts creates the Gaussian Process regression (GPR) model on the noiseless function $f(x) = x\sin(x), x\in\mathbb{R}$.
+```{r}
+library(DiceOptim)
+library(DiceKriging)
+set.seed(11)
+lower <- -5
+upper <- 7
+
+f <- . %>% {sin(.)}
+f <- ackley
+doe <- runif(6, lower, upper) %>% data.frame(x = .)
+response <- sapply(doe$x, f)
+
+gp <- km(~1, doe, response, covtype = 'matern3_2',
+         nugget = 1e-10,
+         control = list(trace = F,
+                        pgtol = 1e-15, 
+                        factr = 1e4,
+                        maxit = 1e5))
+
+x <- c(seq(lower, upper, length.out = 400), doe$x)
+res <- predict(gp, x, 'UK', checkNames = F) 
+df <- data.frame(x, y = sapply(x, f), y.hat = res$mean, se = res$sd)
+```
+Plot the initial GPR model:
+```{r, fig.height=8, fig.width=14}
+p <- ggplot(df) + 
+  geom_line(aes(x, y), colour = 'black', alpha = 0.3, size = 1) + 
+  geom_point(data = data.frame(x = doe$x, y = response), aes(x, y), 
+             colour = 'black', alpha = 0.5, shape = 19, size = 2) + 
+  geom_line(aes(x, y.hat), colour = '#0099ff', alpha = 0.8) + 
+  geom_ribbon(aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se),
+              fill = 'blue', alpha = 0.3)
+p
+```
+The commonly used acquisition function in Bayesian Optimization is \emph{Expected Improvment}.
+Given the objective function we are dealing with is: $f:\mathbb{R}^d \rightarrow \mathbb{R}$. Definition and implementation of the Pandora's index. In terms of minimization:
+$$\forall \mathbf{x}\in\mathbb{R}^d, \quad I(\mathbf{x}) = \sup_{y \in\mathbb{R}}\left\{y \;\vert\; \mathop{\mathbb{E}}[\min\{f(\mathbf{x}),y\}] < y -c \right\},$$
+where $c$ indicates the actual cost if an evaluation were made on $\mathbf{x}$. If the distribution of $f$ is Gaussian, the index is the $y$ value such that $\mathop{\mathbb{E}}[\min\{f(\mathbf{x}),y\}] = c$. 
+Questions: how can we properly define the cost $c$ in the formualtion above. Balancing risk and expected return in evaluating a candidate solution. 
+The following R code implements this criterion:
+```{r}
+`grad` <- function(y, envir) {
+  mean <- envir$mean
+  sd <- envir$sd
+  u <- (y - mean) / sd
+  return(pnorm(u))
+}
+
+`fn` <- function(y, envir) {
+  cost <- envir$cost
+  mean <- envir$mean
+  sd <- envir$sd
+  if (sd == 0) return(max(y - mean, 0) - cost)
+  u <- (y - mean) / sd
+  ei <- (pnorm(u) * u + dnorm(u)) * sd
+  return(ei - cost)
+}
+
+# assuming Gaussian distribution for now...
+`pandora.index` <- function(gp, x, cost) {
+  res <- predict(gp, x, type = 'UK', checkNames = F)
+  envir <- new.env()
+  envir$mean <- res$mean
+  envir$sd <- res$sd
+  envir$cost <- cost
+  opt <- uniroot(fn, c(-2000, 2000), envir)
+  return(-opt$root)
+}
+
+lb <- function(gp, x, w) {
+  res <- predict(gp, x, type = 'UK', checkNames = F)
+  return(res$mean - w * res$sd)
+}
+```
+The Pandora's index looks like the lower bound (LB) criterion:
+$$\operatorname{LB}(\mathbf{x};w) = \hat{f}(\mathbf{x}) - w\hat{s}(\mathbf{x})$$
+```{r}
+ei <- sapply(x, . %>% EI(model = gp))
+vi = sapply(x, . %>% VI(model = gp))
+LCB <- -lb(gp, x, 2)
+ei.max <- max(ei)
+cost <- (1 - pi) * ei.max
+
+df.pandora <- data.frame(x, EI = ei, LCB,
+                         VI = vi,
+                         pi = sapply(x, . %>% PI(model = gp)),
+                         MGF = sapply(x, . %>% MGF(model = gp, t = 2)),
+                   index = sapply(x, . %>% {pandora.index(gp, x = ., (1 - PI(., mode = gp)) * ei.max)})) %>%
+  mutate(EI = EI / max(EI)) %>%
+  mutate(VI = VI / max(VI)) %>%
+  mutate(pi = pi / max(pi)) %>%
+  mutate(MGF = MGF / max(MGF))
+```
+The Expected Improvement v.s. the variance of the improvement
+```{r}
+p <- ggplot(df.pandora, aes(x = EI, y = VI)) + 
+  geom_point()
+p
+```
+
+```{r}
+values <- c('EI' = 'green', 'Pandora' = 'red', 
+            'prediction' = '#0099ff', 
+            'LCB' = 'orange', 'PI' = 'brown',
+            'VI' = 'black',
+            'MGF' = 'pink')
+
+p <- ggplot(df) + 
+  geom_line(aes(x, y), colour = 'black', alpha = 0.3, size = 1) + 
+  geom_point(data = data.frame(x = doe$x, y = response), aes(x, y), 
+             colour = 'black', alpha = 0.5, shape = 19, size = 2) + 
+  geom_line(aes(x, y.hat, colour = 'prediction'), alpha = 0.8) + 
+  geom_ribbon(aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95%'), alpha = 0.3) +
+  # geom_line(data = df.pandora, aes(x, VI, colour = 'VI'), alpha = 0.8) +
+  # geom_line(data = df.pandora, aes(x, index, colour = 'Pandora'), alpha = 0.8) +
+  geom_line(data = df.pandora, aes(x, pi, colour = 'PI'), alpha = 0.8) +
+  geom_line(data = df.pandora, aes(x, EI, colour = 'EI'), alpha = 0.8) +
+  geom_line(data = df.pandora, aes(x, MGF, colour = 'MGF'), linetype = "dashed") +
+  # geom_line(data = df.pandora, aes(x, LCB, colour = 'LCB'), alpha = 0.8) +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_color_manual(name = NULL, values = values) + 
+  scale_fill_manual(name = NULL, values = c('95%' = 'blue')) + 
+  labs(title = 'Ackley function', y = NULL)
+
+print(p)
+```
+

@@ -1,0 +1,136 @@
+---
+title: "Moment-Generating Function based Infill-criterion for Bayesian Optimization"
+author: 'Hao Wang'
+output: 
+  html_notebook:
+    highlight: zenburn
+    theme: spacelab
+    toc: true
+    toc_float: true
+    number_sections: true
+date: '2017-06-13'
+---
+\newcommand{\E}{\mathbb{E}}
+
+```{r setup, echo=FALSE}
+# setup for all the R chunks
+knitr::opts_knit$set(width = 1000)
+# change the workind dir for all the chunks
+knitr::opts_knit$set(root.dir = '~/Dropbox/code_base/BayesianOptim/R/') 
+```
+```{r, include=FALSE}
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+
+source('./criteria.R')
+theme.my <- theme_grey() +
+  theme(text = element_text(size = 25, family = 'Ubuntu Mono derivative Powerline'),
+        legend.key.size = unit(1, "line"), 
+        plot.title = element_text(hjust = 0.5))
+theme_set(theme.my)
+```
+
+# Motivation
+
+How to characterise the distribution of improvements? (higer) Moments? Given its existence, moment-generating function (MGF) could be a natural choice as it combines all (infinite) moments together:
+$$M_{X}(t) = \E[e^{tX}] = 1 + t\E X + \frac{t^2\E X^2}{2!} + \frac{t^3\E X^3}{3!} + \cdots$$
+Plot the MGF function when varying the $t$ value (as below). Judging from the plot, the $t$ value should be scaled log-linearly as higher $t$ values yield quite similar MGF functions. The similar phenomemone can be observed from Generalized Expected Improvement.
+
+# Illustration on 1D Ackley function 
+
+## MGF-based 
+Preparation of the MGF-based Acquisition function data.
+```{r}
+df.MGF <- data.frame(x)
+# t value should be scaled log-linearly to prevent similar MGF functions when t is big
+for (t in exp(seq(-2, log(5), length.out = 30))) {
+  df.MGF %<>% mutate(tmp = sapply(x, . %>% MGF(model = gp, t = t))) %>%
+    mutate(tmp = 10 * tmp / max(tmp)) %>%
+    rename_(.dots = setNames(list('tmp'), as.character(t)))
+}
+
+df.MGF %<>% melt(id = 'x', variable.name = 't', value.name = 'MGF') %>%
+  mutate(t = as.numeric(levels(t))[t]) 
+
+df.MGF.max <- df.MGF %>% 
+  group_by(t) %>% 
+  summarise(x_max = x[MGF == max(MGF)], max = max(MGF))
+```
+And then plot the normalized (for the better visualization) acquisition functions:
+```{r, fig.height=8, fig.width=12, fig.cap='123123'}
+p <- ggplot(df.MGF) + 
+  geom_line(aes(x, MGF, colour = t, group = t), size = 1, alpha = .8) + 
+  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95\\% CI'), alpha = 0.3) +
+  geom_line(data = df, aes(x, y, linetype = 'function'),  size = 1, alpha = 0.5) +
+  geom_line(data = df, aes(x, y.hat, linetype = 'prediction'), size = 1, alpha = 0.5) +
+  geom_point(data = data.frame(x = doe$x, y = response), aes(x, y),
+             colour = 'black', alpha = .8, shape = 20, size = 6) +
+  geom_point(data = df.MGF.max, aes(x_max, max), colour = 'black', alpha = .9, shape = 42, size = 10) +
+  scale_colour_gradientn(name = '$t$', colours = colorspace::rainbow_hcl(10), trans = "log", labels = function(x) sprintf("%.2f", x)) +
+  scale_linetype_manual(name = NULL, values = c('prediction' = 'solid', 'function' = 'dashed'), guide = FALSE) + 
+  scale_fill_manual(name = NULL, values = c('95\\% CI' = '#26989C')) + 
+  labs(x = '$x$', y = '$f$') 
+
+# ggsave('../figure/MGF.pdf', plot = p, width = 14, height = 9, device = cairo_pdf)
+print(p)
+```
+The infinite weights of all the moments are plotted as below, which is actually the pmf of Poisson distribution.
+```{r, fig.height=7, fig.width=10}
+w <- function(t, n) {
+  x <- seq(0, n - 1)
+  weights <- t ^ x / factorial(x)
+  return(weights / exp(t))
+}
+
+N <- 40
+t <- c(0.5, seq(1, 21, length.out = 5))
+weights <- sapply(t, . %>% w(N))
+colnames(weights) <- t
+
+df <- cbind(seq(0, N - 1), weights) %>% 
+  as.data.frame %>%
+  melt(id.vars = 'V1', variable.name = 't', value.name = 'weight')
+
+p <- ggplot(df, aes(x = V1, y = weight, colour = t)) + 
+  geom_point(size = 2) + geom_line() + 
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 1)) + 
+  labs(x = 'order of the moments')
+print(p)
+```
+
+## Generalized EI
+This MGF-based infill-criterion is underpinned by the similar rationale behind the so-called generalized expected Improvement (GEI). Those two funtions are compared in the following.
+Generate some GEI functions by varying the $g$ value:
+```{r}
+df.GEI <- data.frame(x)
+for (g in seq(0, 10)) {
+  df.GEI %<>% mutate(tmp = sapply(x, . %>% GEI(model = gp, g = g))) %>%
+    mutate(tmp = 10 * tmp / max(tmp)) %>%
+    rename_(.dots = setNames(list('tmp'), as.character(g)))
+}
+
+df.GEI %<>% melt(id = 'x', variable.name = 'g', value.name = 'GEI') 
+df.GEI.max <- df.GEI %>% 
+  group_by(g) %>% 
+  summarise(x_max = x[GEI == max(GEI)], max = max(GEI))
+```
+
+```{r, fig.height=8, fig.width=12}
+p <- ggplot(df.GEI) + 
+  geom_line(aes(x, GEI, colour = g, group = g), alpha = 0.8) + 
+  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95\\% CI'), alpha = 0.3) +
+  geom_line(data = df, aes(x, y, linetype = 'function'),  size = 1, alpha = 0.5) +
+  geom_line(data = df, aes(x, y.hat, linetype = 'prediction'), size = 1, alpha = 0.5) +
+  geom_point(data = data.frame(x = doe$x, y = response), aes(x, y), colour = 'black', alpha = .8, shape = 20, size = 6) +
+  geom_point(data = df.GEI.max, aes(x_max, max), colour = 'black', alpha = .9, shape = 42, size = 10) +
+  # scale_colour_gradientn(name = 'GEI', colours = colorspace::heat_hcl(12)) +
+  scale_color_discrete(name = '$g$') +
+  scale_linetype_manual(name = NULL, values = c('prediction' = 'solid', 'function' = 'dashed'), guide = FALSE) + 
+  scale_fill_manual(name = NULL, values = c('95\\% CI' = '#26989C')) + 
+  labs(x = '$x$', y = '$f$') 
+
+# ggsave('../figure/GEI.pdf', plot = p, width = 14, height = 9, device = cairo_pdf)
+print(p)
+```

@@ -1,0 +1,69 @@
+---
+title: "Studies on the Aquisition Function in Bayesian Optimziation"
+author: 'Hao Wang'
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+A general question: for __arbitrary__ (black-box optimization problem) objective functions, does an (unique) __optimal__ acquisition function exist? 
+
+The most acquisition functions (infill criteria) are designed based on the __Improvement__ variable:
+$$
+\begin{aligned}
+I(\mathbf{x}) &:= \max\left(0, f_{\text{min}} - f(\mathbf{x})\right) \\
+f(\mathbf{x}) & \sim \mathcal{N}(m(\mathbf{x}), \sigma^2(\mathbf{x})))
+\end{aligned}
+$$
+Several detailed issues to clarify:
+
+1. The distribution of $I$ given $\mathbf{x}$: the so-called __rectified normal distributon__. Note that it is not the same as *truncated* normal.
+2. 0-order: Probability of Improvement: how likely the sampling at an unknown design site leads to an improvement? 
+$$\operatorname{PI} := P(I > 0)$$
+3. 1-order moment: the expectation of $I$: the expected value
+4. 2-order central moment: The variance of $I$: the variability of the improvement
+```{r}
+VI <- function(x, model, plugin = NULL, t = 1, type = "UK", minimization = TRUE, 
+               envir = NULL) {
+  
+  if (is.null(plugin)) {
+    if (minimization) {
+      plugin <- min(model@y)
+    }
+    else {
+      plugin <- -max(model@y)
+    }
+  }
+  
+  m <- plugin
+  d <- length(x)
+  
+  if (d != model@d) {
+    stop("x does not have the right size")
+  }
+  
+  newdata.num <- as.numeric(x)
+  newdata <- data.frame(t(newdata.num))
+  colnames(newdata) = colnames(model@X)
+  predx <- predict(object = model, newdata = newdata, type = type, 
+                   checkNames = FALSE)
+  
+  mu <- predx$mean
+  sigma <- predx$sd
+  u <- (m - mu) / sigma
+  
+  if (sigma/sqrt(model@covariance@sd2) < 1e-06) {
+    return(0)
+  }
+  
+  p <- pnorm(u)
+  d <- dnorm(u)
+  
+  EI2 <- sigma ^ 2 * ((u ^ 2  + 1) * p + u * d  - u ^ 2 * p ^ 2 - d ^ 2 - 2 * u * p * d)
+  
+  return(EI2)
+}
+```
+
+
+

@@ -1,0 +1,7 @@
+
+
+*.html
+.Rdata
+.Rhistory
+*.pdf
+*.eps
