@@ -1,7 +1,9 @@
-
-
+*.gif
+*.mp4
 *.html
 *.RData
 .Rhistory
 *.pdf
 *.eps
+*.vscode
+data

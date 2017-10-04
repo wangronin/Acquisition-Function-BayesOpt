@@ -6,7 +6,6 @@ init()
 
 suppressMessages(library(DiceOptim))
 suppressMessages(library(magrittr))
-
 options(warn = -1) # switch warnings off
 
 # get info from the MPI parallel processing
@@ -24,7 +23,7 @@ dims <- c(2)
 n.dim <- length(dims)
 
 doe.size <- 21
-n.step <- 50
+n.step <- 100
 cov.type <- "matern3_2"
 
 # algorithm variants to be compared
@@ -48,6 +47,7 @@ for (j in seq_along(dims)) {
     
     fun.attr <- attributes(fun)
     fopt <- fun.attr$fopt
+    xopt <- fun.attr$xopt
     
     lower <- eval(parse(text = fun.attr$lower))
     upper <- eval(parse(text = fun.attr$upper))
@@ -64,7 +64,7 @@ for (j in seq_along(dims)) {
       if (rank == 0) cat(criter, ' ')
       
       # execute the test 
-      res <- test(dim, fun, doe.size, n.step, criter = criter, 
+      res <- test(dim, fun, doe.size, n.step, criter = criter, xopt, 
                   lower, upper, cov.type, verbose = verbose)$y_best_hist
       
       # Synchronization
@@ -101,11 +101,11 @@ for (j in seq_along(dims)) {
         cat(criter, '\n')
         cat('MSRE:', SRE.mean[i, ], '\n')
         
-        csv.name <- paste0(criter, '_', dim, "D_", n.run, 'run', '.csv')  
+        data <- data.frame(t(hist_best[, , i])) %>% 
+          `colnames<-`(paste0('run', seq(n.run)))
         
-        data <- data.frame(steps = 1:(n.step + 1), y = SRE.mean[i, ], se = SRE.sd[i, ],
-                           alg.name = rep(criter, n.step + 1))
-        write.csv(x = data, file = file.path(data.path, csv.name), row.names = FALSE)
+        csv.name <- paste0(criter, '_', dim, "D", '.csv')
+        write.csv(data, file = file.path(data.path, csv.name), row.names = FALSE)
       }
       cat('\n\n')
     }
