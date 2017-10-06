@@ -1,6 +1,6 @@
 test3 <- function(dim, fun, doe.size, nsteps = 10, criter = 'EI', 
                   xopt = NULL, fopt = NULL,
-                  lower, upper, cov.type = "matern5_2", 
+                  lower, upper, cov.type = "matern3_2", 
                   verbose = FALSE, opts = list()) {
   
   design.fact <- matrix(runif(doe.size * dim), doe.size, dim) * 
@@ -14,14 +14,36 @@ test3 <- function(dim, fun, doe.size, nsteps = 10, criter = 'EI',
   names(response.branin) <- "y"
   
   # model identification
-  fitted.model1 <- km(~1, design = design.fact, response=response.branin,
-                      covtype = "gauss", control=list(pop.size=50, 
-                                                      trace=FALSE))
-  # EGO n steps
-  oEGO <- EGO.nsteps(model = fitted.model1, fun=fun, nsteps=nsteps,
-                     lower = lower, upper=upper, control=list(pop.size=20, 
-                                                            print.level = 0,
-                                                            BFGSburnin=2))
+  # fitted.model1 <- km(~1, design = design.fact, response=response.branin,
+  #                     nugget = 1e-8,
+  #                     covtype = "gauss", control=list(pop.size=50, 
+  #                                                     trace=FALSE))
+  # # EGO n steps
+  # oEGO <- EGO.nsteps(model = fitted.model1, fun=fun, nsteps=nsteps,
+  #                    lower = lower, upper=upper, control=list(pop.size=20, 
+  #                                                           print.level = 0,
+  #                                                           BFGSburnin=2))
+  
+  model <- km(~1, design = design.fact, response = response.branin, 
+                      cov.type, 
+              lower = 1e-10 * (upper - lower),
+              upper = 1e2 * (upper - lower),
+              optim.method = 'BFGS',
+              nugget = 1e-8,
+              nugget.estim = T,
+              multistart = 10,
+              control = list(trace = F,
+                             maxit = 2e3 * dim))
+  
+  # run EGO for nsteps
+  oEGO <- EGO.nsteps(model, fun, nsteps, lower, upper,
+              control = list(trace = FALSE,
+                             pop.size = 20, 
+                             print.level = 0,
+                             max.generations = 200,
+                             wait.generations = 10,
+                             BFGSburnin = 5))
+  
   print(oEGO$par)
   print(oEGO$value)
   
@@ -89,17 +111,40 @@ test2 <- function(dim, fun, doe.size, nsteps = 10, criter = 'EI',
   response.branin.norm <- (response.branin - y.mean) / y.sd
   
   # model identification
-  model <- km(~1, design = design.fact, response = response.branin.norm,
-              covtype = "gauss", 
-              control = list(pop.size = 50, trace = FALSE))
-  # EGO n steps
-  oEGO <- EGO(model = model, fun = fun, nsteps = nsteps,
-              criter = 'EI',
+  # model <- km(~1, design = design.fact, response = response.branin.norm,
+  #             covtype = "matern3_2", nugget.estim = T, 
+  #             control = list(pop.size = 50, trace = FALSE))
+  # # EGO n steps
+  # oEGO <- EGO(model = model, fun = fun, nsteps = nsteps,
+  #             criter = 'EI',
+  #             y.mean = y.mean, y.sd = y.sd,
+  #             lower = lower, upper = upper, 
+  #             control = list(pop.size = 20, 
+  #                            print.level = 0,
+  #                            BFGSburnin = 2))
+  # 
+  model <- km(~1, design = design.fact, response = response.branin.norm, cov.type, 
+              lower = 1e-10 * (upper - lower),
+              upper = 1e2 * (upper - lower),
+              optim.method = 'BFGS',
+              nugget = 1e-8,
+              nugget.estim = T,
+              multistart = 10,
+              control = list(trace = F,
+                             maxit = 2e3 * dim))
+  
+  # run EGO for nsteps
+  oEGO <- EGO(model, fun, nsteps, lower, upper,
+              criter = criter,
               y.mean = y.mean, y.sd = y.sd,
-              lower = lower, upper = upper, 
-              control = list(pop.size = 20, 
+              control = list(trace = FALSE,
+                             pop.size = 20, 
                              print.level = 0,
-                             BFGSburnin = 2))
+                             max.generations = 200,
+                             wait.generations = 10,
+                             BFGSburnin = 5),
+              verbose = verbose)
+  
   print(oEGO$par)
   print(oEGO$value)
   
@@ -149,7 +194,7 @@ test2 <- function(dim, fun, doe.size, nsteps = 10, criter = 'EI',
 
 test <- function(dim, fun, doe.size, nsteps, lower, upper,
                  criter = 'EI', xopt = NULL, fopt = NULL,
-                 cov.type = "matern5_2", verbose = FALSE, opts = list()) {
+                 cov.type = "matern3_2", verbose = FALSE, opts = list()) {
   
   # divert the output
   # sink(paste0(Sys.info()['nodename'], '.', Sys.getpid(), '.log'), append = TRUE)
@@ -173,35 +218,34 @@ test <- function(dim, fun, doe.size, nsteps, lower, upper,
     set_names('y')
   
   # Normalization of the output is needed for MGF
-  if (11 < 2) {
-    y.mean <- apply(y, 2, mean)
-    y.sd <- apply(y, 2, sd)
-  } else {
-    y.mean <- 0
-    y.sd <- 1
-  }
+  y.mean <- apply(y, 2, mean)
+  y.sd <- apply(y, 2, sd)
+  y.norm <- (y - y.mean) / y.sd
   
   # model identification
   model <- km(~1, design = X, response = y.norm, cov.type, 
               lower = 1e-10 * (upper - lower),
               upper = 1e2 * (upper - lower),
               optim.method = 'BFGS',
-              nugget = 1e-8,
-              nugget.estim = F,
-              multistart = 10,
+              nugget.estim = T,
+              multistart = 3,
               control = list(trace = F,
-                             maxit = 2e3 * dim))
+                             maxit = 1e2 * dim))
   
   # run EGO for nsteps
   oEGO <- EGO(model, fun, nsteps, lower, upper,
               criter = criter,
               y.mean = y.mean, y.sd = y.sd,
               control = list(trace = FALSE,
-                             pop.size = 50, 
+                             pop.size = 20, 
+                             print.level = 0,
                              max.generations = 200,
-                             wait.generations = 10,
+                             wait.generations = 3,
                              BFGSburnin = 5),
               verbose = verbose)
+  
+  print(oEGO$par)
+  print(oEGO$value)
   
   out <- list()
   # calculate the distance to the optima in search/objective space
@@ -228,12 +272,12 @@ test <- function(dim, fun, doe.size, nsteps, lower, upper,
     }
     
     if (is.null(dim(xopt))) {
-      dist <- x_dist(par, xopt)
-      dist.init <- x_dist(X.norm, xopt) %>% min
+      dist <- x_dist(xopt, par)
+      dist.init <- x_dist(xopt, X) %>% min
     } else {
       dist <- apply(xopt, 1, x_dist, x = par) %>% 
         apply(MARGIN = 1, FUN = min)
-      dist.init <- apply(xopt, 1, x_dist, x = X.norm) %>% 
+      dist.init <- apply(xopt, 1, x_dist, x = X) %>% 
         apply(MARGIN = 1, FUN = min) %>% min
     }
     

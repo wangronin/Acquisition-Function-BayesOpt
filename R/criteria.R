@@ -48,7 +48,7 @@ km.dx <- function(x, model, type = "UK", envir = NULL) {
     kriging.sd <- predx$sd
     v <- predx$Tinv.c
     c <- predx$c
-  } else { # no prediction needed if the enviroment is provided
+  } else {# no prediction needed if the enviroment is provided
     toget <- matrix(c("kriging.sd", "c", "Tinv.c"), 1, 3)
     apply(toget, 2, get, envir = envir)
     kriging.sd <- envir$kriging.sd
@@ -87,7 +87,6 @@ km.dx <- function(x, model, type = "UK", envir = NULL) {
 # Note that this function can generate infinite values
 MGF <- function(x, model, plugin = NULL, t = 1, type = "UK",
                 minimization = TRUE, envir = NULL) {
-  
   # tmp <- aux(x, model, plugin, type, minimization)
   if (is.null(plugin)) {
     if (minimization) {
@@ -98,8 +97,11 @@ MGF <- function(x, model, plugin = NULL, t = 1, type = "UK",
     }
   }
   
-  d <- length(x)
+  if (!is.null(envir)) {
+    t <- envir$t
+  }
   
+  d <- length(x)
   if (d != model@d) {
     stop("x does not have the right size")
   }
@@ -134,7 +136,7 @@ MGF <- function(x, model, plugin = NULL, t = 1, type = "UK",
   
   # for debug purposes: numerical explosion
   if (is.infinite(res)) 
-    browser()
+    res <- 0
   
   if (!is.null(envir)) {
     assign('kriging.mean', kriging.mean, envir = envir)
@@ -181,12 +183,13 @@ MGF.dx <- function(x, model, plugin = NULL, t = 1, type = "UK",
     c <- predx$c
     
   } else {
-    toget <- matrix(c("kriging.sd", "kriging.mean", "c", "Tinv.c"), 1, 4)
+    toget <- matrix(c("kriging.sd", "kriging.mean", "c", "Tinv.c", "t"), 1, 5)
     apply(toget, 2, get, envir = envir)
     kriging.mean <- envir$kriging.mean
     kriging.sd <- envir$kriging.sd
     c <- envir$c
     Tinv.c <- envir$Tinv.c
+    t <- envir$t
   }
   
   m <- kriging.mean
@@ -217,6 +220,10 @@ MGF.dx <- function(x, model, plugin = NULL, t = 1, type = "UK",
       pnorm(beta.prime) * term1 * ((t ^ 2) * s * s.dx - t * m.dx)
     
   }
+  
+  # infinite values are possible if variance is too large
+  if (any(is.infinite(dx))) 
+    dx <- rep(0, d)
   dx
 }
 
@@ -359,7 +366,7 @@ PI.dx <- function(x, model, plugin = NULL, type = "UK", minimization = TRUE,
   } else {
     
     # Compute the y^hat and sd gradient and attach to the running frame
-    list2env(grad(x, model, type = type, envir = environment()), 
+    list2env(km.dx(x, model, type = type, envir = environment()), 
              envir = environment())
     
     if (!minimization) 

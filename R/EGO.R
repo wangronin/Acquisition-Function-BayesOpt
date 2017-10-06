@@ -1,6 +1,7 @@
 suppressMessages(library(DiceOptim))
 suppressMessages(library(rgenoud))
 suppressMessages(library(magrittr))
+
 source('criteria.R')
 
 `EGO` <- function(model, fun, nsteps, lower, upper, criterion = 'EI', 
@@ -22,21 +23,19 @@ source('criteria.R')
   
   # set initial tempurature...
   if (criterion == 'MGF') 
-    t <- 6    
+    t <- 10
+  
+  criter <- switch(criterion, EI = DiceOptim::EI, PI = PI, MGF = MGF)
+  criter.dx <- switch(criterion, EI = DiceOptim::EI.grad, PI = PI.dx, 
+                      MGF = MGF.dx)
   
   for (i in 1:nsteps) {
     if (verbose) 
       cat(paste0(i, '...'))
     
-    criter <- switch(criterion, EI = EI, PI = PI, MGF = MGF)
-    criter.dx <- switch(criterion, EI = EI.grad, PI = PI.dx,
-                        MGF = MGF.dx)
-    
     # maximize the acquisition function
-    # sink('/dev/null')
-    oEGO <- max_criter(model, criter, criter.dx, lower = lower, 
+    oEGO <- max_criter(model, criter, criter.dx, lower = lower, t = t,
                        upper = upper, parinit = parinit, control = control)
-    # sink(NULL)
     
     # de-normalization and normalization again...
     par <- oEGO$par
@@ -73,7 +72,6 @@ source('criteria.R')
     if (criterion == 'MGF') {
       t <- t * 0.85   # exponetial decay of the temperature
     }
-    
   }
   if (verbose) cat('done\n')
   
@@ -85,17 +83,18 @@ source('criteria.R')
 
 max_criter <- function(model, criter, criter.dx = NULL, 
                        plugin = NULL, type = "UK", 
-                       lower, upper, parinit = NULL, 
+                       lower, upper, t = 1, parinit = NULL, 
                        minimization = TRUE, control = NULL) {
+  
   if (is.null(plugin)) {
         plugin <- min(model@y)
   }
   
   criter.envir <- new.env()
   environment(criter) <- environment(criter.dx) <- criter.envir 
-  gr = criter.dx
+  assign('t', t, envir = criter.envir)
+  
   d <- ncol(model@X)
-
   if (is.null(control$print.level)) 
       control$print.level <- 1
   if (d <= 6) 

@@ -111,6 +111,7 @@ attributes(branin) <- list(fopt = 0.397887,
                            lower = 'c(-5, 0)',
                            upper = 'c(10, 15)')
 
+# branin function rescaled to the unit box
 branin2 <- function(x) {
   x1 <- x[1] * 15 - 5
   x2 <- x[2] * 15

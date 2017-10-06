@@ -12,17 +12,18 @@ options(warn = -1) # switch warnings off
 n.run <- comm.size()
 rank <- comm.rank()
 
-setwd('~/criteria/')
+setwd('~/Dropbox/code_base/acquisition/')
 wd <- getwd()
 
 source('./R/EGO.R')
 source('./R/fitness.R')
+source('./R/examples.R')
 
 # ------------------------------------ test settings -----------------------------
 dims <- c(2)
 n.dim <- length(dims)
 
-doe.size <- 21
+doe.size <- 60
 n.step <- 100
 cov.type <- "matern3_2"
 
@@ -31,7 +32,7 @@ algorithms <- c('EI', 'PI', 'MGF')
 n.alg <- length(algorithms)
 
 # test functions
-fun.list <- c('branin', 'ackley', 'rastrigin', 'schwefel', 'griewank')
+fun.list <- c('rastrigin')
 n.fun <- length(fun.list)
 
 verbose <- if (rank == 0) T else F
@@ -65,16 +66,17 @@ for (j in seq_along(dims)) {
       
       # execute the test 
       res <- test(dim, fun, doe.size, n.step, criter = criter, xopt, 
-                  lower, upper, cov.type, verbose = verbose)$y_best_hist
+                  lower, upper, cov.type, verbose = verbose)
+      f_dist <- res$f_dist_best
+      x_dist <- res$x_dist_best
       
       # Synchronization
       barrier()
       
       # gather() would collect data from all the nodes in a list
-      res.best <- gather(res, rank.dest = 0)
+      res.best <- gather(f_dist, rank.dest = 0)
       
       if (rank == 0) {
-        
         res.best <- matrix(unlist(res.best), n.run, n.step + 1, byrow = T)
         
         if (nrow(res.best) != n.run) {
@@ -86,11 +88,10 @@ for (j in seq_along(dims)) {
     
     # On rank 0 node: data processing and plotting
     if (rank == 0) {
-      
       # calculate performance metrics
       SRE <- ((hist_best - fopt) / fopt) ^ 2  # squared relative error
-      SRE.mean <- apply(SRE, c(2, 3), mean) %>% t
-      SRE.sd <- apply(SRE, c(2, 3), sd) %>% t
+      SRE.mean <- apply(SRE, 2, mean) %>% t
+      SRE.sd <- apply(SRE, 2, sd) %>% t
       
       #save.time <- format(Sys.time(), '%Y-%m-%d_%H:%M:%S')
       data.path <- file.path(wd, 'data', fun.name)

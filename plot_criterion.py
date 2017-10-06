@@ -21,11 +21,12 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
 from rpy2.robjects import r
-from rpy2.robjects import pandas2ri
+from rpy2.robjects import pandas2ri, numpy2ri
 
 from matplotlib import rcParams
     
 pandas2ri.activate()
+numpy2ri.activate()
 
 # plot settings
 plt.ioff()
@@ -46,16 +47,16 @@ rcParams['ytick.major.size'] = 7
 rcParams['ytick.major.width'] = 1
 
 # setup working directory
-os.chdir(os.path.expanduser('~')  + '/Desktop/Pandora')
+os.chdir(os.path.expanduser('~')  + '/Dropbox/code_base/acquisition/R')
 
 # ----------------------- Loading the data set from R ------------------------
 r['load']('./grad.RData')
 
-X = r['X']
-Y = r['Y']
-X1 = r['X1']
-Y1 = r['Y1']
-values = r['values']
+X = numpy2ri.ri2py(r['X'])
+Y = numpy2ri.ri2py(r['Y'])
+X1 = numpy2ri.ri2py(r['X1'])
+Y1 = numpy2ri.ri2py(r['Y1'])
+values = numpy2ri.ri2py(r['values'])
 #gradient = r['gradient']
 
 # diagostic plots of gradient field 
@@ -85,7 +86,7 @@ def plot_contour_gradient(ax, x_lb, x_ub, title='f', is_log=False, n_level=30):
     
 #    dx = gradient
     n_X1 = X1.shape[1]
-    dx1, dx2 = r['dx'], r['dy']
+    dx1, dx2 = numpy2ri.ri2py(r['dx']), numpy2ri.ri2py(r['dy'])
     
     dx_norm = np.sqrt(dx1 ** 2. + dx2 ** 2.) # in case of zero gradients
     dx1 /= dx_norm
@@ -110,4 +111,4 @@ fig0, ax = plt.subplots(1, 1,
                      figsize=(fig_width, fig_height), 
                      subplot_kw={'aspect':'equal'}, dpi=100)
 
-plot_contour_gradient(ax, (-5, 0), (10, 15), 'MGF(0.8)')
+plot_contour_gradient(ax, (-5, 0), (10, 15), 'PI')

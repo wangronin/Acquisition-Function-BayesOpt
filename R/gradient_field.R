@@ -8,7 +8,7 @@ library(magrittr)
 
 # generate the gradient field
 # Set the working directory
-setwd('~/Desktop/Pandora/')
+setwd('~/Dropbox/code_base/acquisition/R')
 source('./criteria.R')
 
 set.seed(1234)
@@ -47,11 +47,11 @@ gp <- km(~1, design = design.lhs, response = respones,
                         maxit = 1e5))
 
 # criterion and its gradient: Moment Generating functions
-criter <- . %>% MGF(model = gp, t = 0.8)
-criter.dx <- . %>% MGF.dx(model = gp, t = 0.8)
-if (11 < 2) {
-  criter <- . %>% EI(model = gp)
-  criter.dx <- . %>% EI.grad(model = gp)
+criter <- . %>% MGF(model = gp, t = 0.5)
+criter.dx <- . %>% MGF.dx(model = gp, t = 0.5)
+if (1 < 2) {
+  criter <- . %>% PI(model = gp)
+  criter.dx <- . %>% PI.dx(model = gp)
 }
 
 # criter <- . %>% {predict(object = gp, newdata = ., type = "UK", 
@@ -61,7 +61,7 @@ if (11 < 2) {
 # criter.dx <- . %>% grad(model = gp) %>% '$'(kriging.sd.grad)
 
 # generate the grid for plotting
-step <- 0.2
+step <- 0.1
 x <- seq(lower[1], upper[1], by = step)
 y <- seq(lower[2], upper[2], by = step)
 grid <- expand.grid(x, y)

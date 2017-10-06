@@ -8,25 +8,27 @@ setwd('~/Dropbox/code_base/acquisition/R')
 wd <- getwd()
 source('EGO.R')
 source('fitness.R')
-source('call_EGO.R')
+source('example.R')
 
 # ------------------------------------ test settings -----------------------------
 dims <- c(2)
 ndim <- length(dims)
 
-doe.size <- 21
-nsteps <- 10
-nrun <- 15
+set.seed(123)
 
-test.mode <- c('OK')
+doe.size <- 50
+nsteps <- 30
+nrun <- 30
+
+test.mode <- c('PI')
 nalgorithm <- length(test.mode)
 
 # fun.list <- c('ackley', 'rastrigin', 'schwefel', 'griewank')
-fun.list <- c('branin')
+fun.list <- c('rastrigin')
 nfun <- length(fun.list)
 cov.type <- "matern3_2"
 
-hist_best <- array(NA, dim = c(nrun, nsteps + 1, nalgorithm))
+hist_best_f <- array(NA, dim = c(nrun, nsteps, nalgorithm))
 
 for (j in seq_along(dims)) {
   dim <- dims[j]
@@ -48,8 +50,8 @@ for (j in seq_along(dims)) {
       
       cat(paste('dim:', dim, 'function:', fun.name, "fopt:", fopt), '\n')
       
-      for (k in seq(nrun)) {
-        cat('run', k, '\n')
+      for (n in seq(nrun)) {
+        cat('run', n, '\n')
         
         # set.seed(123)
         # res <- test2(dim, fun, doe.size, nsteps, criter = 'EI', xopt = xopt,
@@ -72,37 +74,35 @@ for (j in seq_along(dims)) {
         # cat('x_dist:', x_dist, '\n')
         # browser()
         
-        res <- test(dim, fun, doe.size, nsteps, criter = 'MGF', xopt = xopt,
-                    fopt = fopt, lower, upper, cov.type, verbose = F)
+        res <- test(dim, fun, doe.size, nsteps, criter = test.mode[i],
+                    xopt = xopt, fopt = fopt, lower, upper, cov.type, verbose = F)
         f_dist <- res$f_dist_best
         x_dist <- res$x_dist_best
         
-        cat('f_dist:', f_dist, '\n')
-        cat('x_dist:', x_dist, '\n')
-        
-        browser()
-        hist_best[k, , i] <- as.vector(f_dist)
+        # cat('f_dist:', f_dist, '\n')
+        # cat('x_dist:', x_dist, '\n')
+        hist_best_f[n, , i] <- f_dist
       }
     }
     
     # data processing and plotting and calculate performance metrics
-    SRE <- abs(hist_best - fopt)  # squared relative error
-    SRE.mean <- apply(SRE, c(2, 3), mean) %>% t
-    SRE.sd <- apply(SRE, c(2, 3), sd) %>% t
+    SRE <- abs(hist_best_f - fopt)  # squared relative error
+    SRE.mean <- apply(SRE, 2, mean) %>% t
+    SRE.sd <- apply(SRE, 2, sd) %>% t
     
-    cat('MSRE:', SRE.mean, '\n')
-    
-    #save.time <- format(Sys.time(), '%Y-%m-%d_%H:%M:%S')
     data.path <- file.path(wd, 'data', fun.name)
-    print(data.path)
     dir.create(data.path, recursive = TRUE, showWarnings = FALSE)
     
     for (i in seq_along(test.mode)) {
-      csv.name <- paste0(dim, "D_", nrun, 'run', '.csv')  
+      criter <- test.mode[i]
+      cat(criter, '\n')
+      cat('MSRE:', SRE.mean[i, ], '\n')
       
-      data <- data.frame(steps = 1:nsteps, y = SRE.mean[i, ], se = SRE.sd[i, ],
-                         alg.name = rep(test.mode[i], nsteps))
-      write.csv(x = data, file = file.path(data.path, csv.name), row.names = FALSE)
+      data <- data.frame(t(hist_best_f[, , i])) %>% 
+        `colnames<-`(paste0('run', seq(nrun)))
+      
+      csv.name <- paste0(criter, '_', dim, "D", '.csv')
+      write.csv(data, file = file.path(data.path, csv.name), row.names = FALSE)
     }
   }
 }

@@ -7,9 +7,9 @@ library(reshape2)
 library(latex2exp)
 
 setwd('~/Dropbox/code_base/acquisition/R')
-source('./criteria.R')
-source('./fitness.R')
-source('./gganimate.R')
+source('criteria.R')
+source('fitness.R')
+source('gganimate.R')
 source('saving.R')
 source('utilities.R')
 
@@ -72,17 +72,17 @@ p <- ggplot(df.MGF) +
                                       frame = t, colour = t),
                linetype = 'dashed', size = 1.5) + 
   # aesthetic adjustments
-  scale_colour_gradientn(name = NULL, colours = colorspace::rainbow_hcl(10), 
+  scale_colour_gradientn(name = NULL, colours = colorRamps::matlab.like(30), 
                          trans = "log", guide = FALSE) +
   scale_linetype_manual(name = NULL, values = c('prediction' = 'dotted', 
                                                 'objective' = 'solid')) + 
-  scale_fill_gradientn(name = NULL, colours = colorspace::rainbow_hcl(10), 
+  scale_fill_gradientn(name = NULL, colours = colorRamps::matlab.like(30), 
                        trans = "log", guide = FALSE) + 
   labs(x = TeX('$x$'), y = 'f') + 
   ggtitle("t =") + 
   theme_grey() + 
   theme(plot.title = element_text(family = "LMMath-Regular",
-                                  hjust = 0.5, size = 20),
+                                  hjust = 0.5, size = 40),
         text = element_text(family = "LMMath-Regular", size = 25),
         axis.title = element_text(family = "LMMath-Regular",
                                   face = 'italic'))
