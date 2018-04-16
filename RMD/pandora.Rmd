@@ -11,7 +11,7 @@ output:
 knitr::opts_knit$set(width = 1000)
 
 # change the workind dir for all the chunks
-knitr::opts_knit$set(root.dir = '~/Dropbox/code_base/BayesianOptim/R/') 
+knitr::opts_knit$set(root.dir = '~/Dropbox/code_base/InfillCriteria/R/') 
 ```
 ```{r, echo=FALSE, include=FALSE}
 library(ggplot2)
@@ -155,4 +155,3 @@ p <- ggplot(df) +
 
 print(p)
 ```
-

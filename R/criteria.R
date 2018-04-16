@@ -314,7 +314,6 @@ PI <- function(x, model, plugin = NULL, type = "UK", minimization = TRUE,
   return(res)
 }
 
-
 PI.dx <- function(x, model, plugin = NULL, type = "UK", minimization = TRUE, 
                   envir = NULL) {
   
