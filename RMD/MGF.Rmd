@@ -28,10 +28,16 @@ library(DiceKriging)
 library(extrafont)
 loadfonts()   # exposing the fonts to plotting library
 
+# check CM Roman font. Install it if does not exist
+if (!'CM Roman' %in% fonts()) {
+  font_install('fontcm', prompt = F)
+  loadfonts()
+}
+
 source('./criteria.R')
 source('./fitness.R')
 theme.my <- theme_grey() +
-  theme(text = element_text(size = 30, family = "CM Roman"),
+  theme(text = element_text(size = 30, family = 'CM Roman'),
         legend.key.size = unit(2, "line"), 
         plot.title = element_text(hjust = 0.5))
 theme_set(theme.my)
@@ -123,11 +129,12 @@ df <- cbind(seq(0, N - 1), weights) %>%
   melt(id.vars = 'V1', variable.name = 't', value.name = 'weight')
 
 p <- ggplot(df, aes(x = V1, y = weight, colour = t)) + 
-  geom_point(size = 2) + geom_line() + 
-  theme(legend.position = "bottom") +
-  guides(colour = guide_legend(nrow = 1)) + 
+  geom_point(size = 3) + geom_line(size = 1) + 
+  scale_color_discrete(name = TeX('$\\mathit{t}$')) +
   labs(x = 'order of the moments')
-print(p)
+
+ggsave('_weight.pdf', plot = p, width = 14, height = 9)
+embed_fonts('_weight.pdf', outfile = 'weight.pdf')
 ```
 
 ## Generalized EI
