@@ -7,4 +7,5 @@
 *.pdf
 *.eps
 *.vscode
+.DS_Store
 data
