@@ -26,6 +26,7 @@ library(latex2exp)
 library(DiceOptim)
 library(DiceKriging)
 library(extrafont)
+library(tikzDevice)
 loadfonts()   # exposing the fonts to plotting library
 
 # check CM Roman font. Install it if does not exist
@@ -36,9 +37,9 @@ if (!'CM Roman' %in% fonts()) {
 
 source('./criteria.R')
 source('./fitness.R')
-theme.my <- theme_grey() +
-  theme(text = element_text(size = 30, family = 'CM Roman'),
-        legend.key.size = unit(2, "line"), 
+theme.my <- theme_grey() + 
+  theme(text = element_text(size = 30, family = 'Latin Modern Math'),
+        legend.key.size = unit(2, "line"),
         plot.title = element_text(hjust = 0.5))
 theme_set(theme.my)
 ```
@@ -92,24 +93,27 @@ df.MGF.max <- df.MGF %>%
   summarise(x_max = x[MGF == max(MGF)], max = max(MGF))
 ```
 And then plot the normalized (for the better visualization) acquisition functions:
-```{r, fig.height=8, fig.width=12, fig.cap='123123'}
+```{r, fig.height=8, fig.width=12, fig.cap=' '}
+tikz(file = "MGFI.tex", width = 14, height = 9)
 p <- ggplot(df.MGF) + 
   geom_line(aes(x, MGF, colour = t, group = t), size = 1, alpha = .8) + 
-  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95% CI'), alpha = 0.3) +
+  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95\\% CI'), alpha = 0.19) +
   geom_line(data = df, aes(x, y, linetype = 'function'),  size = 1, alpha = 0.5) +
   geom_line(data = df, aes(x, y.hat, linetype = 'prediction'), size = 1, alpha = 0.5) +
   geom_point(data = data.frame(x = doe$x, y = response), aes(x, y),
              colour = 'black', alpha = .8, shape = 20, size = 6) +
   geom_point(data = df.MGF.max, aes(x_max, max), colour = 'black', alpha = .9, shape = 3, size = 10) +
-  scale_colour_gradientn(name = TeX('$\\mathit{t}$'), breaks = quantile(unique(df.MGF$t)), 
+  scale_colour_gradientn(name = '$\\mathit{t}$', breaks = quantile(unique(df.MGF$t)), 
                          colours = colorspace::rainbow_hcl(10), trans = "log", 
                          labels = function(x) sprintf("%.2f", x)) +
   scale_linetype_manual(name = NULL, values = c('prediction' = 'solid', 'function' = 'dashed'), guide = FALSE) + 
-  scale_fill_manual(name = NULL, values = c('95% CI' = '#26989C')) + 
-  labs(x = TeX('$\\mathit{x}$'), y = TeX('$\\mathit{f}$')) 
+  scale_fill_manual(name = NULL, values = c('95\\% CI' = '#26989C')) + 
+  labs(x = '$\\mathit{x}$', y = '$\\mathit{f}$') 
 
-ggsave('_MGF.pdf', plot = p, width = 14, height = 9)
-embed_fonts('_MGF.pdf', outfile = 'MGF.pdf')
+print(p)
+dev.off()
+# ggsave('MGF.pdf', plot = p, width = 14, height = 9, device = cairo_pdf)
+# embed_fonts('MGF.pdf', outfile = 'MGF2.pdf')
 ```
 The infinite weights of all the moments are plotted as below, which is actually the pmf of Poisson distribution.
 ```{r, fig.height=7, fig.width=10}
@@ -155,18 +159,21 @@ df.GEI.max <- df.GEI %>%
 ```
 
 ```{r, fig.height=8, fig.width=12}
+tikz(file = "GEI.tex", width = 14, height = 9)
 p <- ggplot(df.GEI) + 
   geom_line(aes(x, GEI, colour = g, group = g), size = 1, alpha = 0.8) + 
-  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95% CI'), alpha = 0.3) +
+  geom_ribbon(data = df, aes(x = x, ymin = y.hat - 1.96 * se, ymax = y.hat + 1.96 * se, fill = '95\\% CI'), alpha = 0.19) +
   geom_line(data = df, aes(x, y, linetype = 'function'),  size = 1, alpha = 0.5) +
   geom_line(data = df, aes(x, y.hat, linetype = 'prediction'), size = 1, alpha = 0.5) +
   geom_point(data = data.frame(x = doe$x, y = response), aes(x, y), colour = 'black', alpha = .8, shape = 20, size = 6) +
   geom_point(data = df.GEI.max, aes(x_max, max), colour = 'black', alpha = .9, shape = 3, size = 10) +
-  scale_color_discrete(name = TeX('$\\mathit{g}$')) +
+  scale_color_discrete(name = '$\\mathit{g}$') +
   scale_linetype_manual(name = NULL, values = c('prediction' = 'solid', 'function' = 'dashed'), guide = FALSE) + 
-  scale_fill_manual(name = NULL, values = c('95% CI' = '#26989C')) + 
-  labs(x = TeX('$\\mathit{x}$'), y = TeX('$\\mathit{f}$')) 
+  scale_fill_manual(name = NULL, values = c('95\\% CI' = '#26989C')) + 
+  labs(x = '$\\mathit{x}$', y = '$\\mathit{f}$')
 
-ggsave('_GEI.pdf', plot = p, width = 14, height = 9)
-embed_fonts("_GEI.pdf", outfile = "GEI.pdf")
+print(p)
+dev.off()
+# ggsave('_GEI.pdf', plot = p, width = 14, height = 9)
+# embed_fonts("_GEI.pdf", outfile = "GEI.pdf")
 ```
